@@ -117,3 +117,5 @@ export function isPropertyOfType<T extends ResponsePropertyType>(type: T[]) {
   return (property: PageResponseProperty): property is PropertyResponse<T> =>
     (type as ResponsePropertyType[]).includes(property.type);
 }
+
+export type BlockObjectRequest = ChildBlock;

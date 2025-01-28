@@ -29,3 +29,11 @@ export function getRootElement(htmlString: string): Element | null {
   const containerDiv = body.querySelector('div[data-schema-version]');
   return containerDiv || body;
 }
+
+export function parseHTML(html: string): Document {
+  return new DOMParser().parseFromString(html, 'text/html');
+}
+
+export function findContainer(doc: Document): Element | null {
+  return doc.querySelector('div[data-citation-items]');
+}

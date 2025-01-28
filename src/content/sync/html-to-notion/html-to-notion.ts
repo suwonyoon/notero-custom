@@ -5,6 +5,7 @@ import {
   RichText,
   RichTextOptions,
   isBlockType,
+  BlockObjectRequest,
 } from '../notion-types';
 import { buildRichText } from '../notion-utils';
 
@@ -20,7 +21,7 @@ import {
   listResult,
   richTextResult,
 } from './content-result';
-import { getRootElement } from './dom-utils';
+import { getRootElement, parseHTML, findContainer } from './dom-utils';
 import {
   BlockElement,
   ListElement,
@@ -28,48 +29,50 @@ import {
   ParsedNode,
   parseNode,
 } from './parse-node';
+import { logger } from '../../utils';
 
-export function convertHtmlToBlocks(htmlString: string): ChildBlock[] {
-  const root = getRootElement(htmlString);
-  if (!root) throw new Error('Failed to load HTML content');
+export function convertHtmlToBlocks(
+  html: string,
+  options: { isAnnotation?: boolean } = {},
+): BlockObjectRequest[] {
+  const { isAnnotation = false } = options;
+  
+  logger.debug("=== CONVERTING HTML TO BLOCKS ===");
+  logger.debug("Is Annotation (from options): " + isAnnotation);
+  logger.debug("HTML: " + html);
 
-  const result = convertNode(root);
-
-  if (
-    !result ||
-    !isBlockResult(result) ||
-    !isBlockType('paragraph', result.block)
-  ) {
-    throw new Error('Unexpected HTML content');
+  const doc = parseHTML(html);
+  const container = findContainer(doc);
+  
+  if (!container) {
+    return [];
   }
 
-  const { children, rich_text } = result.block.paragraph;
+  return Array.from(container.children)
+    .map((element) => {
+      const parsedNode = parseNode(element);
+      if (!parsedNode) {
+        return;
+      }
 
-  return [
-    ...(rich_text.length ? [paragraphBlock(rich_text)] : []),
-    ...(children || []),
-  ];
+      // Pass isAnnotation to all conversion functions
+      return convertNode(parsedNode, { isAnnotation });
+    })
+    .filter(Boolean);
 }
 
 function convertNode(
-  node: Node,
-  options: RichTextOptions = {},
-): ContentResult | undefined {
-  const parsedNode = parseNode(node);
-
-  if (!parsedNode) return;
-
-  switch (parsedNode.type) {
+  node: ParsedNode,
+  options: RichTextOptions & { isAnnotation?: boolean },
+): BlockObjectRequest | undefined {
+  switch (node.type) {
     case 'block':
-      return parsedNode.supportsChildren
-        ? convertParentElement(parsedNode, options)
-        : convertBlockElement(parsedNode, options);
+      // Pass isAnnotation to convertBlockElement
+      return convertBlockElement(node, options).block;
     case 'list':
-      return convertListElement(parsedNode, options);
-    case 'math_block':
-      return blockResult({ equation: { expression: parsedNode.expression } });
+      return convertListElement(node, options).block;
     default:
-      return richTextResult(convertRichTextNode(parsedNode, options));
+      return;
   }
 }
 
@@ -128,9 +131,31 @@ function convertParentElement(
 
 function convertBlockElement(
   { annotations, blockType, color, element }: BlockElement,
-  options: RichTextOptions,
+  options: RichTextOptions & { isAnnotation?: boolean },
 ): BlockResult {
-  const preserveWhitespace = blockType === 'code';
+  const { isAnnotation = false } = options;
+  
+  logger.debug("=== ELEMENT DEBUG START ===");
+  logger.debug("Is Annotation (from options): " + isAnnotation);
+  logger.debug("Block Type (initial): " + blockType);
+  logger.debug("Element tag: " + element.tagName);
+  logger.debug("Has highlight: " + !!element.querySelector('.highlight'));
+  logger.debug("Has image: " + !!element.querySelector('img'));
+  logger.debug("HTML: " + element.outerHTML);
+
+  // Check if this is an annotation paragraph
+  if (isAnnotation && element.tagName === 'P') {
+    const hasHighlight = element.querySelector('.highlight') !== null;
+    const hasImage = element.querySelector('img') !== null;
+    
+    if (hasHighlight || hasImage) {
+      blockType = 'quote';
+      logger.debug("Converting to quote block");
+    }
+  }
+  
+  logger.debug("Block Type (final): " + blockType);
+  logger.debug("=== ELEMENT DEBUG END ===");
 
   const updatedOptions = {
     ...options,
@@ -138,19 +163,13 @@ function convertBlockElement(
       ...options.annotations,
       ...annotations,
     },
-    preserveWhitespace,
+    preserveWhitespace: blockType === 'code',
   };
 
   let rich_text = convertRichTextChildNodes(element, updatedOptions);
 
-  if (!preserveWhitespace) {
+  if (!updatedOptions.preserveWhitespace) {
     rich_text = trimRichText(rich_text);
-  }
-
-  if (blockType === 'code') {
-    return blockResult(
-      keyValue(blockType, { rich_text, language: 'plain text' }),
-    );
   }
 
   return blockResult(

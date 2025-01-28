@@ -12,6 +12,8 @@ import { convertHtmlToBlocks } from './html-to-notion';
 import { LIMITS } from './notion-limits';
 import { ChildBlock } from './notion-types';
 import { isArchivedOrNotFoundError } from './notion-utils';
+import { isAnnotationNote } from '../utils/note-utils';
+import { logger } from '../utils';
 
 /**
  * Sync a Zotero note item to Notion as children blocks of the page for its
@@ -49,6 +51,12 @@ export async function syncNoteItem(
     );
   }
 
+  const isAnnotation = isAnnotationNote(noteItem);
+  logger.debug(
+    `Syncing ${isAnnotation ? 'annotation' : 'regular'} note:`,
+    noteItem.getNoteTitle()
+  );
+
   const regularItem = noteItem.topLevelItem;
   const pageID = getNotionPageID(regularItem);
 
@@ -80,14 +88,24 @@ export async function syncNoteItem(
   let newNoteBlockID;
 
   try {
-    newNoteBlockID = await createNoteBlock(notion, containerBlockID, noteItem);
+    newNoteBlockID = await createNoteBlock(
+      notion, 
+      containerBlockID, 
+      noteItem,
+      isAnnotation
+    );
   } catch (error) {
     if (!isArchivedOrNotFoundError(error)) {
       throw error;
     }
 
     containerBlockID = await createContainerBlock(notion, pageID);
-    newNoteBlockID = await createNoteBlock(notion, containerBlockID, noteItem);
+    newNoteBlockID = await createNoteBlock(
+      notion, 
+      containerBlockID, 
+      noteItem,
+      isAnnotation
+    );
   } finally {
     await saveSyncedNote(
       regularItem,
@@ -97,7 +115,7 @@ export async function syncNoteItem(
     );
   }
 
-  await addNoteBlockContent(notion, newNoteBlockID, noteItem);
+  await addNoteBlockContent(notion, newNoteBlockID, noteItem, isAnnotation);
 }
 
 async function createContainerBlock(
@@ -130,35 +148,41 @@ async function createNoteBlock(
   notion: Client,
   containerBlockID: string,
   noteItem: Zotero.Item,
+  isAnnotation: boolean = false,
 ): Promise<string> {
-  const { results } = await notion.blocks.children.append({
+  const response = await notion.blocks.children.append({
     block_id: containerBlockID,
     children: [
       {
-        heading_1: {
-          rich_text: [{ text: { content: noteItem.getNoteTitle() } }],
-          is_toggleable: true,
+        type: 'toggle',
+        toggle: {
+          rich_text: [
+            {
+              type: 'text',
+              text: {
+                content: isAnnotation ? 'PDF Annotations' : noteItem.getNoteTitle(),
+              },
+            },
+          ],
         },
       },
     ],
   });
 
-  if (!results[0]) {
-    throw new LocalizableError(
-      'Failed to create note block',
-      'notero-error-note-sync-failed',
-    );
+  if (!isFullBlock(response.results[0])) {
+    throw new Error('Failed to create note block');
   }
 
-  return results[0].id;
+  return response.results[0].id;
 }
 
 async function addNoteBlockContent(
   notion: Client,
   noteBlockID: string,
   noteItem: Zotero.Item,
+  isAnnotation: boolean = false,
 ): Promise<void> {
-  const blockBatches = buildNoteBlockBatches(noteItem);
+  const blockBatches = buildNoteBlockBatches(noteItem, isAnnotation);
 
   for (const blocks of blockBatches) {
     await notion.blocks.children.append({
@@ -168,10 +192,13 @@ async function addNoteBlockContent(
   }
 }
 
-function buildNoteBlockBatches(noteItem: Zotero.Item): BlockObjectRequest[][] {
+function buildNoteBlockBatches(
+  noteItem: Zotero.Item,
+  isAnnotation: boolean = false,
+): BlockObjectRequest[][] {
   let blocks;
   try {
-    blocks = convertHtmlToBlocks(noteItem.getNote());
+    blocks = convertHtmlToBlocks(noteItem.getNote(), { isAnnotation });
   } catch (error) {
     throw new LocalizableError(
       'Failed to convert note content to Notion blocks',
