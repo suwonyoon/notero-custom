@@ -135,39 +135,91 @@ function convertBlockElement(
 ): BlockResult {
   const { isAnnotation = false } = options;
   
-  logger.debug("=== ELEMENT DEBUG START ===");
-  logger.debug("Is Annotation (from options): " + isAnnotation);
-  logger.debug("Block Type (initial): " + blockType);
-  logger.debug("Element tag: " + element.tagName);
-  logger.debug("Has highlight: " + !!element.querySelector('.highlight'));
-  logger.debug("Has image: " + !!element.querySelector('img'));
-  logger.debug("HTML: " + element.outerHTML);
-
   // Check if this is an annotation paragraph
   if (isAnnotation && element.tagName === 'P') {
-    const hasHighlight = element.querySelector('.highlight') !== null;
-    const hasImage = element.querySelector('img') !== null;
+    const highlightSpan = element.querySelector('.highlight');
     
-    if (hasHighlight || hasImage) {
-      blockType = 'quote';
-      logger.debug("Converting to quote block");
+    if (highlightSpan) {
+      // Get the inner span's text content and remove first and last character
+      const innerSpan = highlightSpan.querySelector('span');
+      const rawText = innerSpan?.textContent || highlightSpan.textContent || '';
+      const highlightedText = rawText.slice(1, -1).trim();
+      
+      logger.debug("Original text: " + rawText);
+      logger.debug("Processed text: " + highlightedText);
+      
+      // Get the remaining text after the citation
+      const citationSpan = element.querySelector('.citation');
+      let remainingText = '';
+      if (citationSpan) {
+        const nextSibling = citationSpan.nextSibling;
+        if (nextSibling) {
+          remainingText = nextSibling.textContent || '';
+        }
+      }
+      
+      // Split into comment and tags
+      const [comment, ...tagParts] = remainingText.trim().split(/#/);
+      
+      // Format tags with code annotation
+      const formattedTags = tagParts.map(tag => ({
+        type: 'text',
+        text: { content: '#' + tag.trim() },
+        annotations: { code: true }
+      }));
+
+      // Create blocks array
+      return blockResult({
+        type: 'paragraph',
+        paragraph: {
+          rich_text: [], // Empty rich_text array for the parent
+          children: [
+            {
+              type: 'callout',
+              callout: {
+                rich_text: [{
+                  type: 'text',
+                  text: { content: highlightedText }
+                }],
+                color: 'yellow_background'
+              }
+            },
+            {
+              type: 'paragraph',
+              paragraph: {
+                rich_text: [
+                  {
+                    type: 'text',
+                    text: { content: comment.trim() + '\n' }
+                  },
+                  ...formattedTags.flatMap((tag, index) => [
+                    tag,
+                    { type: 'text', text: { content: ' ' } }
+                  ]).slice(0, -1)
+                ]
+              }
+            },
+            {
+              type: 'divider',
+              divider: {}
+            }
+          ]
+        }
+      });
     }
   }
-  
-  logger.debug("Block Type (final): " + blockType);
-  logger.debug("=== ELEMENT DEBUG END ===");
 
+  // Default handling for non-annotation blocks
   const updatedOptions = {
     ...options,
     annotations: {
       ...options.annotations,
       ...annotations,
     },
-    preserveWhitespace: blockType === 'code',
+    preserveWhitespace: blockType === 'code'
   };
 
   let rich_text = convertRichTextChildNodes(element, updatedOptions);
-
   if (!updatedOptions.preserveWhitespace) {
     rich_text = trimRichText(rich_text);
   }
