@@ -30,49 +30,57 @@ import {
   parseNode,
 } from './parse-node';
 import { logger } from '../../utils';
+import { uploadToImgur } from '../../utils/imgur';
 
-export function convertHtmlToBlocks(
+async function convertNode(
+  node: ParsedNode,
+  options: RichTextOptions & { isAnnotation?: boolean },
+): Promise<BlockObjectRequest | BlockObjectRequest[] | undefined> {
+  switch (node.type) {
+    case 'block':
+      const blockResult = await convertBlockElement(node, options);
+      if ('results' in blockResult) {
+        return blockResult.results.map(r => r.block);
+      }
+      return blockResult.block;
+    case 'list':
+      const listResult = convertListElement(node, options);
+      return listResult.results.map(r => r.block);
+    default:
+      return;
+  }
+}
+
+export async function convertHtmlToBlocks(
   html: string,
   options: { isAnnotation?: boolean } = {},
-): BlockObjectRequest[] {
+): Promise<BlockObjectRequest[]> {
   const { isAnnotation = false } = options;
   
   logger.debug("=== CONVERTING HTML TO BLOCKS ===");
   logger.debug("Is Annotation (from options): " + isAnnotation);
   logger.debug("HTML: " + html);
 
-  const doc = parseHTML(html);
-  const container = findContainer(doc);
-  
-  if (!container) {
-    return [];
-  }
+  try {
+    // Create a temporary div to parse HTML and get text content
+    const doc = parseHTML(html);
+    const text = doc.body?.textContent || html;
 
-  return Array.from(container.children)
-    .map((element) => {
-      const parsedNode = parseNode(element);
-      if (!parsedNode) {
-        return;
+    const blocks = [{
+      type: 'paragraph',
+      paragraph: {
+        rich_text: [{
+          type: 'text',
+          text: { content: text.trim() }
+        }]
       }
+    }];
 
-      // Pass isAnnotation to all conversion functions
-      return convertNode(parsedNode, { isAnnotation });
-    })
-    .filter(Boolean);
-}
-
-function convertNode(
-  node: ParsedNode,
-  options: RichTextOptions & { isAnnotation?: boolean },
-): BlockObjectRequest | undefined {
-  switch (node.type) {
-    case 'block':
-      // Pass isAnnotation to convertBlockElement
-      return convertBlockElement(node, options).block;
-    case 'list':
-      return convertListElement(node, options).block;
-    default:
-      return;
+    logger.debug("Created blocks:", blocks);
+    return blocks;
+  } catch (error) {
+    logger.error("Error converting HTML to blocks:", error);
+    return [];
   }
 }
 
@@ -129,107 +137,138 @@ function convertParentElement(
   );
 }
 
-function convertBlockElement(
+async function convertBlockElement(
   { annotations, blockType, color, element }: BlockElement,
   options: RichTextOptions & { isAnnotation?: boolean },
-): BlockResult {
+): Promise<BlockResult> {
   const { isAnnotation = false } = options;
   
-  // Check if this is an annotation paragraph
   if (isAnnotation && element.tagName === 'P') {
-    const highlightSpan = element.querySelector('.highlight');
+    const blocks: BlockObjectRequest[] = [];
     
-    if (highlightSpan) {
-      // Get the inner span's text content and remove first and last character
-      const innerSpan = highlightSpan.querySelector('span');
-      const rawText = innerSpan?.textContent || highlightSpan.textContent || '';
-      const highlightedText = rawText.slice(1, -1).trim();
-      
-      logger.debug("Original text: " + rawText);
-      logger.debug("Processed text: " + highlightedText);
-      
-      // Get the remaining text after the citation
-      const citationSpan = element.querySelector('.citation');
-      let remainingText = '';
-      if (citationSpan) {
-        const nextSibling = citationSpan.nextSibling;
-        if (nextSibling) {
-          remainingText = nextSibling.textContent || '';
+    try {
+      // Process image annotation if present
+      const imgElement = element.querySelector('img[data-annotation]');
+      if (imgElement) {
+        try {
+          await Zotero.uiReadyPromise;
+          if (!Zotero.Notero) {
+            throw new Error('Notero not initialized');
+          }
+
+          const annotationData = JSON.parse(decodeURIComponent(imgElement.getAttribute('data-annotation') || '{}'));
+          const annotationKey = annotationData.annotationKey;
+          
+          const localFilePath = `/Users/suwonyoon/Library/Application Support/Zotero/Profiles/o576o2ld.dev/zotero/cache/library/${annotationKey}.png`;
+          
+          logger.debug('Uploading image to Imgur...');
+          const imgurUrl = await uploadToImgur(localFilePath);
+          logger.debug('Got Imgur URL:', imgurUrl);
+          
+          blocks.push({
+            type: 'image',
+            image: {
+              type: 'external',
+              external: {
+                url: imgurUrl
+              }
+            }
+          });
+        } catch (error) {
+          logger.error('Failed to process image annotation:', error);
+          blocks.push({
+            type: 'paragraph',
+            paragraph: {
+              rich_text: [{
+                type: 'text',
+                text: { content: `[Image annotation error: ${error.message}]` }
+              }]
+            }
+          });
         }
       }
       
-      // Split into comment and tags
-      const [comment, ...tagParts] = remainingText.trim().split(/#/);
+      // Process text annotation if present
+      const highlightSpan = element.querySelector('.highlight');
+      if (highlightSpan) {
+        try {
+          const innerSpan = highlightSpan.querySelector('span');
+          const text = innerSpan?.textContent || highlightSpan.textContent || '';
+          const highlightedText = text.trim();
+          
+          blocks.push({
+            type: 'quote',
+            quote: {
+              rich_text: [{
+                type: 'text',
+                text: { content: highlightedText }
+              }],
+              color: 'yellow_background'
+            }
+          });
+          
+          // Get comment if any
+          const citationSpan = element.querySelector('.citation');
+          if (citationSpan) {
+            const nextSibling = citationSpan.nextSibling;
+            if (nextSibling && nextSibling.textContent) {
+              blocks.push({
+                type: 'paragraph',
+                paragraph: {
+                  rich_text: [{
+                    type: 'text',
+                    text: { content: nextSibling.textContent.trim() }
+                  }]
+                }
+              });
+            }
+          }
+        } catch (error) {
+          logger.error('Failed to process text annotation:', error);
+          blocks.push({
+            type: 'paragraph',
+            paragraph: {
+              rich_text: [{
+                type: 'text',
+                text: { content: `[Text annotation error: ${error.message}]` }
+              }]
+            }
+          });
+        }
+      }
       
-      // Format tags with code annotation
-      const formattedTags = tagParts.map(tag => ({
-        type: 'text',
-        text: { content: '#' + tag.trim() },
-        annotations: { code: true }
-      }));
-
-      // Create blocks array
+      // Return blocks directly instead of nesting them
+      if (blocks.length === 1) {
+        return blockResult(blocks[0]);
+      } else if (blocks.length > 1) {
+        // If we have multiple blocks, return them as a list
+        return {
+          type: 'list',
+          results: blocks.map(block => blockResult(block))
+        };
+      }
+    } catch (error) {
+      logger.error('Failed to process annotation block:', error);
       return blockResult({
         type: 'paragraph',
         paragraph: {
-          rich_text: [], // Empty rich_text array for the parent
-          children: [
-            {
-              type: 'callout',
-              callout: {
-                rich_text: [{
-                  type: 'text',
-                  text: { content: highlightedText }
-                }],
-                color: 'yellow_background'
-              }
-            },
-            {
-              type: 'paragraph',
-              paragraph: {
-                rich_text: [
-                  {
-                    type: 'text',
-                    text: { content: comment.trim() + '\n' }
-                  },
-                  ...formattedTags.flatMap((tag, index) => [
-                    tag,
-                    { type: 'text', text: { content: ' ' } }
-                  ]).slice(0, -1)
-                ]
-              }
-            },
-            {
-              type: 'divider',
-              divider: {}
-            }
-          ]
+          rich_text: [{
+            type: 'text',
+            text: { content: `[Annotation processing error: ${error.message}]` }
+          }]
         }
       });
     }
   }
-
+  
   // Default handling for non-annotation blocks
-  const updatedOptions = {
-    ...options,
-    annotations: {
-      ...options.annotations,
-      ...annotations,
-    },
-    preserveWhitespace: blockType === 'code'
-  };
-
-  let rich_text = convertRichTextChildNodes(element, updatedOptions);
-  if (!updatedOptions.preserveWhitespace) {
-    rich_text = trimRichText(rich_text);
-  }
-
-  return blockResult(
-    keyValue(blockType, {
-      rich_text,
-      ...(color && { color }),
-    }),
-  );
+  return blockResult({
+    type: blockType,
+    [blockType]: {
+      rich_text: [],
+      ...(color && { color })
+    }
+  });
 }
 
 function convertListElement(

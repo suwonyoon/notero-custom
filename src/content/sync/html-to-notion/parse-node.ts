@@ -162,21 +162,70 @@ function parseRichTextElement(element: HTMLElement): RichTextElement {
   };
 }
 
-export function parseNode(node: Node): ParsedNode | undefined {
+function parseTextNode(node: Node): TextNode | undefined {
+  const { textContent } = node;
+  if (!textContent?.trim()) return;
+  return { type: 'text', textContent };
+}
+
+export function parseNode(node: any): ParsedNode | undefined {
   if (isTextNode(node)) {
-    return { textContent: node.textContent, type: 'text' };
-  }
-  if (!isHTMLElement(node)) {
-    return undefined;
+    return parseTextNode(node);
   }
 
-  switch (node.tagName) {
+  if (!isHTMLElement(node)) {
+    return;
+  }
+
+  const element = node as HTMLElement;
+  const tagName = element.tagName;
+
+  // Handle blockquote for annotations
+  if (tagName === 'BLOCKQUOTE') {
+    return {
+      type: 'block',
+      blockType: 'quote',
+      element,
+      annotations: {},
+      supportsChildren: true,
+    };
+  }
+
+  // Handle highlight spans
+  if (element.classList.contains('highlight')) {
+    const innerSpan = element.querySelector('span');
+    const backgroundColor = innerSpan?.style.backgroundColor;
+    return {
+      type: 'rich_text',
+      element,
+      annotations: { color: 'yellow_background' }, // We can enhance this later to map colors
+    };
+  }
+
+  // Handle citation spans
+  if (element.classList.contains('citation')) {
+    return {
+      type: 'rich_text',
+      element,
+      annotations: {},
+    };
+  }
+
+  // Handle paragraph
+  if (tagName === 'P') {
+    return {
+      type: 'block',
+      blockType: 'paragraph',
+      element,
+      annotations: {},
+      supportsChildren: true,
+    };
+  }
+
+  // Rest of the existing parseNode logic...
+  switch (tagName) {
     case 'A':
       return parseAnchorElement(node as HTMLAnchorElement);
-    case 'BLOCKQUOTE':
-      return parseBlockElement(node, 'quote');
-    case 'BR':
-      return { type: 'br' };
     case 'BODY':
     case 'DIV':
     case 'P':

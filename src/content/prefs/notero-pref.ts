@@ -35,14 +35,15 @@ export const PAGE_TITLE_FORMAT_L10N_IDS: Record<
   [PageTitleFormat.itemTitle]: 'notero-page-title-format-item-title',
 };
 
-type NoteroPrefValue = Partial<{
-  [NoteroPref.collectionSyncConfigs]: string;
-  [NoteroPref.notionDatabaseID]: string;
-  [NoteroPref.notionToken]: string;
-  [NoteroPref.pageTitleFormat]: PageTitleFormat;
-  [NoteroPref.syncNotes]: boolean;
-  [NoteroPref.syncOnModifyItems]: boolean;
-}>;
+export type NoteroPrefValue = {
+  collectionSyncConfigs: string;
+  notionDatabaseID: string;
+  notionToken: string;
+  pageTitleFormat: PageTitleFormat;
+  syncNotes: boolean;
+  syncOnModifyItems: boolean;
+  imgurCache: string | null;
+};
 
 function buildFullPrefName(pref: NoteroPref): string {
   return `extensions.notero.${pref}`;
@@ -89,6 +90,7 @@ function convertRawPrefValue<P extends NoteroPref>(
     [NoteroPref.pageTitleFormat]: pageTitleFormatPref,
     [NoteroPref.syncNotes]: booleanPref,
     [NoteroPref.syncOnModifyItems]: booleanPref,
+    [NoteroPref.imgurCache]: stringPref,
   }[pref];
 }
 

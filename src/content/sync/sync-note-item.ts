@@ -173,7 +173,12 @@ async function createNoteBlock(
     throw new Error('Failed to create note block');
   }
 
-  return response.results[0].id;
+  const noteBlockID = response.results[0].id;
+  
+  // Add the content to the note block
+  await addNoteBlockContent(notion, noteBlockID, noteItem, isAnnotation);
+
+  return noteBlockID;
 }
 
 async function addNoteBlockContent(
@@ -207,20 +212,34 @@ function buildNoteBlockBatches(
     );
   }
 
-  const numBatches = Math.ceil(blocks.length / LIMITS.BLOCK_ARRAY_ELEMENTS);
-  const batches = new Array<ChildBlock[]>(numBatches);
-  let offset = 0;
-  let nextOffset = LIMITS.BLOCK_ARRAY_ELEMENTS;
-
-  for (let i = 0; i < numBatches; ++i) {
-    batches[i] = blocks.slice(offset, nextOffset);
-    offset = nextOffset;
-    nextOffset += LIMITS.BLOCK_ARRAY_ELEMENTS;
+  // Ensure blocks is an array
+  if (!Array.isArray(blocks)) {
+    logger.error('Blocks is not an array:', blocks);
+    blocks = [];
   }
 
-  // @ts-expect-error FIXME: This will result in errors if `batches` contains
-  // more than two levels of nested blocks.
-  // https://github.com/dvanoni/notero/issues/463
+  // Safety check for array length
+  const batchSize = Math.min(LIMITS.BLOCK_ARRAY_ELEMENTS, 100); // Add a reasonable max limit
+  const numBatches = Math.max(1, Math.ceil(blocks.length / batchSize));
+  
+  logger.debug('Building batches:', {
+    totalBlocks: blocks.length,
+    batchSize,
+    numBatches
+  });
+
+  const batches: BlockObjectRequest[][] = [];
+  
+  for (let i = 0; i < numBatches; i++) {
+    const start = i * batchSize;
+    const end = Math.min(start + batchSize, blocks.length);
+    const batch = blocks.slice(start, end);
+    if (batch.length > 0) {
+      batches.push(batch);
+    }
+  }
+
+  logger.debug('Created batches:', batches);
   return batches;
 }
 
