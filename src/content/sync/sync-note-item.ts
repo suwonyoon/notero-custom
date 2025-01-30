@@ -53,7 +53,7 @@ export async function syncNoteItem(
 
   const isAnnotation = isAnnotationNote(noteItem);
   logger.debug(
-    `Syncing ${isAnnotation ? 'annotation' : 'regular'} note:`,
+    `Processing ${isAnnotation ? 'annotation' : 'regular'} note:`,
     noteItem.getNoteTitle()
   );
 
@@ -173,22 +173,17 @@ async function createNoteBlock(
     throw new Error('Failed to create note block');
   }
 
-  const noteBlockID = response.results[0].id;
-  
-  // Add the content to the note block
-  await addNoteBlockContent(notion, noteBlockID, noteItem, isAnnotation);
-
-  return noteBlockID;
+  return response.results[0].id;
 }
 
 async function addNoteBlockContent(
   notion: Client,
   noteBlockID: string,
   noteItem: Zotero.Item,
-  isAnnotation: boolean = false,
+  isAnnotation: boolean,
 ): Promise<void> {
-  const blockBatches = buildNoteBlockBatches(noteItem, isAnnotation);
-
+  const blockBatches = await buildNoteBlockBatches(noteItem, isAnnotation);
+  
   for (const blocks of blockBatches) {
     await notion.blocks.children.append({
       block_id: noteBlockID,
@@ -197,13 +192,13 @@ async function addNoteBlockContent(
   }
 }
 
-function buildNoteBlockBatches(
+async function buildNoteBlockBatches(
   noteItem: Zotero.Item,
   isAnnotation: boolean = false,
-): BlockObjectRequest[][] {
+): Promise<BlockObjectRequest[][]> {
   let blocks;
   try {
-    blocks = convertHtmlToBlocks(noteItem.getNote(), { isAnnotation });
+    blocks = await convertHtmlToBlocks(noteItem.getNote(), { isAnnotation });
   } catch (error) {
     throw new LocalizableError(
       'Failed to convert note content to Notion blocks',
