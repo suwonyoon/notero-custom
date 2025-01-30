@@ -260,8 +260,16 @@ async function convertBlockElement(
       } else if (highlightSpan) {
         // Get the inner span with the background color
         const colorSpan = highlightSpan.querySelector('span');
+        logger.debug('Color spans:', {
+          highlight: highlightSpan.outerHTML,
+          inner: colorSpan?.outerHTML
+        });
+        
+        // Use the color span if it exists, otherwise use the highlight span
         const notionColor = getNotionColor(colorSpan || highlightSpan);
-        logger.debug('Converted Notion color:', notionColor);
+        logger.debug('Extracted color info:', {
+          computedColor: notionColor
+        });
         
         const rawText = colorSpan?.textContent || highlightSpan.textContent || '';
         const highlightedText = rawText.slice(1, -1).trim();

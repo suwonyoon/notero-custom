@@ -198,7 +198,64 @@ async function buildNoteBlockBatches(
 ): Promise<BlockObjectRequest[][]> {
   let blocks;
   try {
-    blocks = await convertHtmlToBlocks(noteItem.getNote(), { isAnnotation });
+    const originalBlocks = await convertHtmlToBlocks(noteItem.getNote(), { isAnnotation });
+    
+    // If this is an annotation page, organize blocks by color toggles
+    if (isAnnotation && Array.isArray(originalBlocks)) {
+      blocks = [];
+      const colorGroups: { [key: string]: boolean } = {};
+      
+      // Color to section title mapping
+      const colorTitles: { [key: string]: string } = {
+        'yellow_background': 'Highlights',
+        'red_background': 'Weak Points',
+        'green_background': 'Strong Points',
+        'blue_background': 'Unique Points',
+        'purple_background': 'To Explore',
+        'default': 'Other Notes'
+      };
+      
+      // First pass: identify all colors
+      originalBlocks.forEach(block => {
+        if ('callout' in block) {
+          const color = block.callout.color || 'default';
+          colorGroups[color] = true;
+        }
+      });
+
+      // Create toggle headings for each color
+      Object.keys(colorGroups).forEach(color => {
+        blocks.push({
+          type: 'heading_3',
+          heading_3: {
+            rich_text: [{
+              type: 'text',
+              text: { 
+                content: colorTitles[color] || color.replace('_background', '').replace('_', ' ').toUpperCase()
+              }
+            }],
+            children: []
+          }
+        });
+      });
+
+      // Second pass: add blocks under appropriate toggles
+      originalBlocks.forEach(block => {
+        if ('callout' in block) {
+          const color = block.callout.color || 'default';
+          // Find the corresponding heading and add the block to its children
+          const heading = blocks.find(b => 
+            'heading_3' in b && 
+            b.heading_3.rich_text[0].text.content === colorTitles[color]
+          );
+          if (heading && 'heading_3' in heading) {
+            heading.heading_3.children.push(block);
+          }
+        }
+      });
+    } else {
+      blocks = originalBlocks;
+    }
   } catch (error) {
     throw new LocalizableError(
       'Failed to convert note content to Notion blocks',
@@ -214,15 +271,9 @@ async function buildNoteBlockBatches(
   }
 
   // Safety check for array length
-  const batchSize = Math.min(LIMITS.BLOCK_ARRAY_ELEMENTS, 100); // Add a reasonable max limit
+  const batchSize = Math.min(LIMITS.BLOCK_ARRAY_ELEMENTS, 100);
   const numBatches = Math.max(1, Math.ceil(blocks.length / batchSize));
   
-  logger.debug('Building batches:', {
-    totalBlocks: blocks.length,
-    batchSize,
-    numBatches
-  });
-
   const batches: BlockObjectRequest[][] = [];
   
   for (let i = 0; i < numBatches; i++) {
@@ -234,7 +285,6 @@ async function buildNoteBlockBatches(
     }
   }
 
-  logger.debug('Created batches:', batches);
   return batches;
 }
 
