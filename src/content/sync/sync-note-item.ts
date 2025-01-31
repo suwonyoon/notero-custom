@@ -200,7 +200,6 @@ async function buildNoteBlockBatches(
   try {
     const originalBlocks = await convertHtmlToBlocks(noteItem.getNote(), { isAnnotation });
     
-    // If this is an annotation page, organize blocks by color toggles
     if (isAnnotation && Array.isArray(originalBlocks)) {
       blocks = [];
       const colorGroups: { [key: string]: boolean } = {};
@@ -215,7 +214,7 @@ async function buildNoteBlockBatches(
         'default': 'Other Notes'
       };
       
-      // First pass: identify all colors
+      // First pass: identify colors
       originalBlocks.forEach(block => {
         if ('callout' in block) {
           const color = block.callout.color || 'default';
@@ -223,7 +222,7 @@ async function buildNoteBlockBatches(
         }
       });
 
-      // Create toggle headings for each color
+      // Create toggle headings
       Object.keys(colorGroups).forEach(color => {
         blocks.push({
           type: 'heading_3',
@@ -239,20 +238,83 @@ async function buildNoteBlockBatches(
         });
       });
 
-      // Second pass: add blocks under appropriate toggles
+      // Second pass: organize blocks
+      let currentCalloutColor = null;
+      let currentGroup = [];
+
       originalBlocks.forEach(block => {
         if ('callout' in block) {
-          const color = block.callout.color || 'default';
-          // Find the corresponding heading and add the block to its children
-          const heading = blocks.find(b => 
-            'heading_3' in b && 
-            b.heading_3.rich_text[0].text.content === colorTitles[color]
-          );
-          if (heading && 'heading_3' in heading) {
-            heading.heading_3.children.push(block);
+          // Add previous group if exists
+          if (currentCalloutColor && currentGroup.length > 0) {
+            const heading = blocks.find(b => 
+              'heading_3' in b && 
+              b.heading_3.rich_text[0].text.content === colorTitles[currentCalloutColor]
+            );
+            if (heading && 'heading_3' in heading) {
+              heading.heading_3.children.push(...currentGroup);
+            }
           }
+
+          // Start new group
+          currentCalloutColor = block.callout.color || 'default';
+          currentGroup = [block];
+        } else if (currentCalloutColor && 'paragraph' in block) {
+          // Split paragraph into comment and tags
+          const richText = block.paragraph.rich_text;
+          let comment = '';
+          const tags: { type: 'text', text: { content: string }, annotations: { code: true } }[] = [];
+          
+          richText.forEach(text => {
+            if ('annotations' in text && text.annotations?.code) {
+              // This is a tag
+              tags.push({
+                type: 'text',
+                text: { content: text.text.content },
+                annotations: { code: true }
+              });
+            } else {
+              // This is comment text
+              comment += text.text.content;
+            }
+          });
+
+          // Add comment if exists
+          if (comment.trim()) {
+            currentGroup.push({
+              type: 'paragraph',
+              paragraph: {
+                rich_text: [{ type: 'text', text: { content: comment.trim() } }]
+              }
+            });
+          }
+
+          // Add tags if exist
+          if (tags.length > 0) {
+            currentGroup.push({
+              type: 'paragraph',
+              paragraph: {
+                rich_text: tags.flatMap((tag, index) => [
+                  tag,
+                  index < tags.length - 1 ? { type: 'text', text: { content: ' ' } } : null
+                ]).filter(Boolean)
+              }
+            });
+          }
+        } else if (currentCalloutColor && 'divider' in block) {
+          currentGroup.push(block);
         }
       });
+
+      // Add final group
+      if (currentCalloutColor && currentGroup.length > 0) {
+        const heading = blocks.find(b => 
+          'heading_3' in b && 
+          b.heading_3.rich_text[0].text.content === colorTitles[currentCalloutColor]
+        );
+        if (heading && 'heading_3' in heading) {
+          heading.heading_3.children.push(...currentGroup);
+        }
+      }
     } else {
       blocks = originalBlocks;
     }
