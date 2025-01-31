@@ -1,6 +1,6 @@
 import { BlockObjectRequest } from '@notionhq/client/build/src/api-endpoints';
 
-// Based on a PDF shared in https://github.com/dvanoni/notero/issues/4#issuecomment-1661322835
+// Based on a PDF shared in https://github.com/suwonyoon/notero-custom/issues/4#issuecomment-1661322835
 export const expected: BlockObjectRequest[] = [
   {
     quote: {

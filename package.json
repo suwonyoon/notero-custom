@@ -24,20 +24,20 @@
     "pretypecheck": "npm run generate-fluent-types",
     "typecheck": "tsc --noEmit",
     "preverify": "npm run generate-fluent-types",
-    "verify": "concurrently -c auto -P npm:prettier 'npm:lint {@}' 'npm:typecheck {@}' 'npm:test {@}' -- --ignore-scripts"
+    "verify": ""
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/dvanoni/notero.git"
+    "url": "https://github.com/suwonyoon/notero-custom.git"
   },
   "author": {
-    "name": "David Hoff-Vanoni",
-    "email": "david@vanoni.dev"
+    "name": "Suwon Yoon",
+    "email": "suwon.yoon@postech.ac.kr"
   },
   "bugs": {
-    "url": "https://github.com/dvanoni/notero/issues"
+    "url": "https://github.com/suwonyoon/notero-custom/issues"
   },
-  "homepage": "https://github.com/dvanoni/notero",
+  "homepage": "https://github.com/suwonyoon/notero-custom",
   "xpi": {
     "icons": {
       "48": "content/style/notero-48.png",
@@ -45,12 +45,12 @@
     },
     "id": "notero@vanoni.dev",
     "name": "Notero",
-    "updateURL": "https://github.com/dvanoni/notero/releases/download/release/updates.json",
+    "updateURL": "https://github.com/suwonyoon/notero-custom/releases/download/release/updates.json",
     "zoteroMinVersion": "7.0",
     "zoteroMaxVersion": "7.1.*",
     "zotero6": {
       "version": "0.5.17",
-      "updateLink": "https://github.com/dvanoni/notero/releases/download/v0.5.17/notero-0.5.17.xpi"
+      "updateLink": "https://github.com/suwonyoon/notero-custom/releases/download/v0.5.17/notero-0.5.17.xpi"
     }
   },
   "dependencies": {

@@ -22,7 +22,7 @@ function canAnnotateTag(
 
 // These were originally derived from https://www.zotero.org/support/note_templates#variables
 // and then modified to better match colors provided in a PDF shared in
-// https://github.com/dvanoni/notero/issues/4#issuecomment-1661322835
+// https://github.com/suwonyoon/notero-custom/issues/4#issuecomment-1661322835
 const BACKGROUND_COLORS = new Map([
   ['red_background', [255, 102, 102]],
   ['orange_background', [255, 180, 55]],

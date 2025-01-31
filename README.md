@@ -1,7 +1,7 @@
 # Notero
 
-[![Latest release](https://img.shields.io/github/v/release/dvanoni/notero)](https://github.com/dvanoni/notero/releases/latest)
-[![Total downloads](https://img.shields.io/github/downloads/dvanoni/notero/latest/total?sort=semver)][download]
+[![Latest release](https://img.shields.io/github/v/release/dvanoni/notero)](https://github.com/suwonyoon/notero-custom/releases/latest)
+[![Total downloads](https://img.shields.io/github/downloads/suwonyoon/notero-custom/latest/total?sort=semver)][download]
 [![Works with Zotero](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fdvanoni%2Fnotero%2Fmain%2Fpackage.json&query=%24.xpi.zoteroMinVersion&prefix=v&suffix=%2B&logo=zotero&label=Works%20with%20Zotero&color=%23CC2936)](https://www.zotero.org/)
 [![Buy me a coffee](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fapp.buymeacoffee.com%2Fapi%2Fcreators%2Fslug%2Fdvanoni&query=%24.data.public_supporters_count&prefix=%F0%9F%92%9C%20&style=social&logo=buymeacoffee&label=Buy%20me%20a%20coffee)](https://www.buymeacoffee.com/dvanoni)
 
@@ -99,7 +99,7 @@ extract them into a Zotero note:
 
 <details>
   <summary>Example of creating a note from PDF annotations</summary>
-  <video src="https://github.com/dvanoni/notero/assets/299357/4cda5dc7-ba5b-4f5a-8f53-d6bc2c44b1dc" />
+  <video src="https://github.com/suwonyoon/notero-custom/assets/299357/4cda5dc7-ba5b-4f5a-8f53-d6bc2c44b1dc" />
 </details>
 
 ## Installation and Setup
@@ -130,8 +130,8 @@ Notion database. Detailed setup instructions are below.
 5. Configure the Notero preferences as desired.
 
 [download]: https://download.notero.vanoni.dev
-[latest release]: https://github.com/dvanoni/notero/releases/latest
-[v0.5.17]: https://github.com/dvanoni/notero/releases/tag/v0.5.17
+[latest release]: https://github.com/suwonyoon/notero-custom/releases/latest
+[v0.5.17]: https://github.com/suwonyoon/notero-custom/releases/tag/v0.5.17
 
 ### Connect to Notion
 
@@ -205,7 +205,7 @@ the other properties must be configured exactly as specified here. Note that
 property names are case-sensitive, so the capitalization must match exactly.
 
 Support for customizing properties is planned for the future;
-see issue [#355](https://github.com/dvanoni/notero/issues/355).
+see issue [#355](https://github.com/suwonyoon/notero-custom/issues/355).
 
 | Property Name       | Property Type | Notes                                                                          |
 | ------------------- | ------------- | ------------------------------------------------------------------------------ |
@@ -456,4 +456,4 @@ builds the `.xpi` file and publishes it to the release. It also generates an
 updated manifest file and publishes it to the [`release`][release-tag] release.
 
 [release-please]: https://github.com/googleapis/release-please-action
-[release-tag]: https://github.com/dvanoni/notero/releases/tag/release
+[release-tag]: https://github.com/suwonyoon/notero-custom/releases/tag/release

@@ -39,7 +39,7 @@ const zoteroTextColors: ColorTestCase[] = [
 const customBackgroundColors: ColorTestCase[] = [
   // A gray that's not completely achromatic
   ['#ddddd9', 'gray_background'],
-  // Based on a PDF shared in https://github.com/dvanoni/notero/issues/4#issuecomment-1661322835
+  // Based on a PDF shared in https://github.com/suwonyoon/notero-custom/issues/4#issuecomment-1661322835
   ['#ffcd99', 'orange_background'],
   ['#ffff55', 'yellow_background'],
   ['#55ff55', 'green_background'],
